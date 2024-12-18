@@ -2,22 +2,24 @@ FROM swr.cn-south-1.myhuaweicloud.com/ascendhub/ascend-infer-310b:24.0.RC1-arm
 
 USER 0
 
-RUN apt-get update && apt install -y --no-install-recommends git && apt clean
-
+# Make project directory.
+# We will put dispatcher and its dependences in this.
 RUN mkdir -p /app
 WORKDIR /app
 
+# Copy projcet files,
+# Note Miniconda3 installer should manual download and move into build contaxt.
 COPY dispatcher/  .
 COPY gw ./gw
 COPY gwmodel ./gwmodel
+COPY acllite ./acllite
 COPY Miniconda3-latest-Linux-aarch64.sh .
 
-RUN git clone https://gitee.com/ascend/ACLLite.git && cp -r /app/ACLLite/python /app/acllite
-
+# Give project directory to hw user becuase ascend require a specified user id to run it.
 RUN chown -R HwHiAiUser:HwHiAiUser /app
-
 USER 1000
 
+# Install conda and setup projcet env.
 RUN bash Miniconda3-latest-Linux-aarch64.sh -p /app/miniconda -b && \
     /app/miniconda/bin/conda init
 
