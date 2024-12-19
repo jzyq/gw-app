@@ -1,4 +1,4 @@
-FROM swr.cn-south-1.myhuaweicloud.com/ascendhub/ascend-infer-310b:24.0.RC1-arm
+FROM swr.cn-south-1.myhuaweicloud.com/ascendhub/ascend-infer-310b:24.0.RC1-dev-arm
 
 USER 0
 
@@ -28,7 +28,7 @@ ENV DDK_PATH=/usr/local/Ascend/ascend-toolkit/latest
 ENV NPU_HOST_LIB=$DDK_PATH/runtime/lib64/stub
 #
 # 3. Run build script to build ACLLite.
-RUN --mount=type=bind,target=/tmp \
+RUN --mount=type=bind,target=/tmp,rw \
     cd /tmp/3party/ACLLite && \
     bash build_so.sh
 # It will auto install all libs into /lib. EOP.
