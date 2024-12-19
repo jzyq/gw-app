@@ -14,9 +14,24 @@ COPY gw ./gw
 COPY gwmodel ./gwmodel
 COPY acllite ./acllite
 
-# Build and install ACLLite.
+# Build and Install ACLLite.
+#
+# 1. Install dependences.
+RUN apt update && \
+    apt install -y --no-install-recommends \
+        libavcodec-dev \
+        libavdevice-dev && \
+    apt clean
+#
+# 2. Setup build env
+ENV DDK_PATH=/usr/local/Ascend/ascend-toolkit/latest
+ENV NPU_HOST_LIB=$DDK_PATH/runtime/lib64/stub
+#
+# 3. Run build script to build ACLLite.
 RUN --mount=type=bind,target=/tmp \
-    bash /tmp/dispatcher/scripts/build_acllite.sh /tmp/3party/ACLLite
+    cd /tmp/3party/ACLLite \
+    bash build_acllite.sh
+# It will auto install all libs into /lib. EOP.
 
 # Give project directory to hw user becuase ascend require a specified user id to run it.
 RUN chown -R HwHiAiUser:HwHiAiUser /app
