@@ -16,7 +16,7 @@ COPY acllite ./acllite
 
 # Build and install ACLLite.
 RUN --mount=type=bind,target=/tmp \
-    
+    bash /tmp/dispatcher/scripts/build_acllite.sh /tmp/3party/ACLLite
 
 # Give project directory to hw user becuase ascend require a specified user id to run it.
 RUN chown -R HwHiAiUser:HwHiAiUser /app
