@@ -40,6 +40,7 @@ ENV PYTHONPATH=${THIRDPART_PATH}:${PYTHONPATH}
 #
 # 5. Copy packages into thirdparty.
 RUN --mount=type=bind,target=/tmp \
+    mkdir -p ${THIRDPART_PATH} && \
     cp -r /tmp/3party/ACLLite/python ${THIRDPART_PATH}/acllite
 #
 # ACLLite install ok, EOP.
