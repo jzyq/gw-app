@@ -13,14 +13,14 @@ COPY dispatcher/  .
 COPY gw ./gw
 COPY gwmodel ./gwmodel
 COPY acllite ./acllite
-COPY Miniconda3-latest-Linux-aarch64.sh .
 
 # Give project directory to hw user becuase ascend require a specified user id to run it.
 RUN chown -R HwHiAiUser:HwHiAiUser /app
 USER 1000
 
 # Install conda and setup projcet env.
-RUN bash Miniconda3-latest-Linux-aarch64.sh -p /app/miniconda -b && \
+RUN --mount=type=bind,target=/tmp \
+    bash /tmp/Miniconda3-latest-Linux-aarch64.sh -p /app/miniconda -b && \
     /app/miniconda/bin/conda init
 
 ENV PATH=/app/miniconda/bin:${PATH}
