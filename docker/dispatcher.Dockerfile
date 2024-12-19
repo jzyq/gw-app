@@ -14,6 +14,10 @@ COPY gw ./gw
 COPY gwmodel ./gwmodel
 COPY acllite ./acllite
 
+# Build and install ACLLite.
+RUN --mount=type=bind,target=/tmp \
+    
+
 # Give project directory to hw user becuase ascend require a specified user id to run it.
 RUN chown -R HwHiAiUser:HwHiAiUser /app
 USER 1000
