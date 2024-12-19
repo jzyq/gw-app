@@ -30,7 +30,7 @@ ENV NPU_HOST_LIB=$DDK_PATH/runtime/lib64/stub
 # 3. Run build script to build ACLLite.
 RUN --mount=type=bind,target=/tmp,rw \
     cd /tmp/3party/ACLLite && \
-    bash build_so.sh
+    python build_so.py
 # It will auto install all libs into /lib. EOP.
 
 # Give project directory to hw user becuase ascend require a specified user id to run it.

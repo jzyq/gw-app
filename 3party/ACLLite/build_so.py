@@ -5,6 +5,7 @@ import subprocess
 def build(working_path: str):
     # Chage to working path.
     os.chdir(working_path)
+    print("working in dir: ", working_path)
 
     # Check if build directory exists, if exists, remove it.
     build_dir = os.path.join(working_path, "build")
@@ -14,7 +15,10 @@ def build(working_path: str):
 
     # Build build path and move into it.
     os.mkdir(build_dir)
+    print("make build dir: ", build_dir)
+
     os.chdir(build_dir)
+    print("working in dir: ", build_dir)
 
     # Make config.
     res = subprocess.run(
@@ -28,19 +32,19 @@ def build(working_path: str):
         capture_output=True,
     )
     if res.returncode != 0:
-        print("cmake configurate failed. ", res.stderr)
+        print("cmake configurate failed. ", res.stderr.decode())
         return res.returncode
 
     # Make
     res = subprocess.run(["make"], capture_output=True)
     if res.returncode != 0:
-        print("make failed. ", res.stderr)
+        print("make failed. ", res.stderr.decode())
         return res.returncode
 
     # Install
     res = subprocess.run(["make", "install"], capture_output=True)
     if res.returncode != 0:
-        print("make install failed. ", res.stderr)
+        print("make install failed. ", res.stderr.decode())
         return res.returncode
 
     return 0
@@ -51,7 +55,7 @@ if __name__ == "__main__":
 
     packages = ["Common", "DVPPLite", "Media", "OMExecute"]
     for p in packages:
-        package_dir = os.path.join(os.curdir, p)
+        package_dir = os.path.join(os.getcwd(), p)
         ret = build(package_dir)
         if ret != 0:
             sys.exit(ret)
