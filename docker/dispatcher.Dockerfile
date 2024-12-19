@@ -67,4 +67,4 @@ RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 RUN pip install -r gw/requirements.txt --no-deps --no-cache-dir
 RUN pip install -r gwmodel/requirements.txt --no-deps --no-cache-dir
 
-CMD ["python", "task_dispatcher.py"]
+CMD ["bash", "run.sh"]
