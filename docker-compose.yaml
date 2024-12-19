@@ -68,9 +68,11 @@ services:
       - /usr/local/dcmi:/usr/local/dcmi:rw
       - /usr/local/bin/npu-smi:/usr/local/bin/npu-smi:rw
       - /usr/local/Ascend/driver:/usr/local/Ascend/driver:rw
-
       - /etc/sys_version.conf:/etc/sys_version.conf:ro
       - /etc/hdcBasic.cfg:/etc/hdcBasic.cfg:ro
+      - /etc/ascend_driver.conf:/etc/ascend_driver.conf:ro
+      - /etc/ascend_filelist.info:/etc/ascend_filelist.info:ro
+      - /etc/ascend_install.info:/etc/ascend_install.info:ro
       - /usr/lib64/libaicpu_processer.so:/usr/lib64/libaicpu_processer.so:ro
       - /usr/lib64/libaicpu_prof.so:/usr/lib64/libaicpu_prof.so:ro
       - /usr/lib64/libaicpu_sharder.so:/usr/lib64/libaicpu_sharder.so:ro
