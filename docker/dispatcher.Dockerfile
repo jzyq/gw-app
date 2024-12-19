@@ -36,7 +36,7 @@ RUN --mount=type=bind,target=/tmp,rw \
 #
 # 4. Set envs.
 ENV THIRDPART_PATH=${DDK_PATH}/thirdpart
-ENV PYTHONPATH=${THIRDPART_PATH}:${PYTHONPATH}
+ENV PYTHONPATH=${THIRDPART_PATH}/acllite:${PYTHONPATH}
 #
 # 5. Copy packages into thirdparty.
 RUN --mount=type=bind,target=/tmp \

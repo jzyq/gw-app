@@ -23,8 +23,8 @@ class YOLOv8_DET:
         self.device_id = config['device_id']
 
         if self.platform == 'ASCEND':
-            from acllite.acllite_resource import AclLiteResource
-            from acllite.acllite_model import AclLiteModel
+            from acllite_resource import AclLiteResource
+            from acllite_model import AclLiteModel
 
             self.device = f'npu:{self.device_id}'
 
