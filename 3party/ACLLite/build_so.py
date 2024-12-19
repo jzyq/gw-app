@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 
 
@@ -11,7 +12,7 @@ def build(working_path: str):
     build_dir = os.path.join(working_path, "build")
     if os.path.exists(build_dir):
         print("build dir {} exists, remove it.".format(build_dir))
-        os.rmdir(build_dir)
+        shutil.rmtree(build_dir, ignore_errors=True)
 
     # Build build path and move into it.
     os.mkdir(build_dir)
