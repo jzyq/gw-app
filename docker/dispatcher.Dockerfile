@@ -12,26 +12,36 @@ WORKDIR /app
 COPY dispatcher/  .
 COPY gw ./gw
 COPY gwmodel ./gwmodel
-COPY acllite ./acllite
 
 # Build and Install ACLLite.
 #
 # 1. Install dependences.
 RUN apt update && \
     apt install -y --no-install-recommends \
-        libavcodec-dev \
-        libavdevice-dev && \
+    libavcodec-dev \
+    libavdevice-dev && \
     apt clean
 #
 # 2. Setup build env
 ENV DDK_PATH=/usr/local/Ascend/ascend-toolkit/latest
-ENV NPU_HOST_LIB=$DDK_PATH/runtime/lib64/stub
+ENV NPU_HOST_LIB=${DDK_PATH}/runtime/lib64/stub
 #
 # 3. Run build script to build ACLLite.
 RUN --mount=type=bind,target=/tmp,rw \
     cd /tmp/3party/ACLLite && \
     python build_so.py
-# It will auto install all libs into /lib. EOP.
+#
+# It will auto install all libs into /lib.
+# Now depoly acllite python packages.
+#
+# 4. Set envs.
+ENV THIRDPART_PATH=${DDK_PATH}/thirdpart
+ENV PYTHONPATH=${THIRDPART_PATH}:${PYTHONPATH}
+#
+# 5. Copy packages into thirdparty.
+RUN cp -r /tmp/ACLLite/python ${THIRDPART_PATH}/acllite
+#
+# ACLLite install ok, EOP.
 
 # Give project directory to hw user becuase ascend require a specified user id to run it.
 RUN chown -R HwHiAiUser:HwHiAiUser /app
