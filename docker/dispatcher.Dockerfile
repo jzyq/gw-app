@@ -49,6 +49,17 @@ RUN --mount=type=bind,target=/tmp \
 RUN chown -R HwHiAiUser:HwHiAiUser /app
 USER 1000
 
+# Install conda and setup projcet env.
+RUN --mount=type=bind,target=/tmp \
+    bash /tmp/Miniconda3-latest-Linux-aarch64.sh -p /app/miniconda -b && \
+    /app/miniconda/bin/conda init
+
+ENV PATH=/app/miniconda/bin:${PATH}
+RUN conda create --name gw -y python=3.11
+
+ENV CONDA_DEFAULT_ENV=gw
+RUN echo "conda activate gw" >> ~/.bashrc
+
 # If build too slow in mainland, use aliyun mirros when need.
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 
