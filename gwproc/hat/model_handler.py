@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import base64
 import json
+import yaml
 import time
 import numpy as np
 
@@ -18,13 +19,12 @@ _cur_dir_=os.path.dirname(__file__)
 class HatDetectHatHandler(ImageHandler):
     def __init__(self, platform='ASCEND', device_id=None):
         super().__init__()
-        self.conf = 0.6
-        self.iou = 0.5
+        self.read_config()
+        
         self.new_shape = [960, 960]
         self.model_name = 'hat'
         self.classes = ['helmet', "no_helmet"]
         self.num_classes = 2
-        self.filter_size = 1
         
         self.platform = platform
         
@@ -59,6 +59,22 @@ class HatDetectHatHandler(ImageHandler):
         
         self.inference_sessions = {'hat': sess1, 'person': sess_person}
        
+    def read_config(self):
+        # 读取配置文件
+        _config_file = os.path.join(_cur_dir_, 'config.yaml')
+        with open(_config_file, 'r') as f:
+            config = yaml.safe_load(f)
+
+        # 访问参数
+        self.conf = config['detect']['conf_thres']
+        self.iou = config['detect']['iou_thres']
+
+        self.filter_size = config['filter']['filter_size']
+        
+        self.do_dedup = (config['dedup']['enable']==1)
+        self.dedup_template_thres = config['dedup']['template_thres']
+        self.dedup_iou_thres = config['dedup']['iou_thres']
+        self.dedup_freq = config['dedup']['time_freq']
             
     def release(self):
         if self.platform == 'ASCEND':
@@ -71,27 +87,20 @@ class HatDetectHatHandler(ImageHandler):
         else:
             logger.info(f'Model {self.model_name} Relased')
 
-
-    def run_inference(self, image_files):
+    def run_inference(self, image_files, extra_args=None):
         _images_data = []
         for _image_file in image_files:
             with open(_image_file, 'rb') as file:
                 encoded_str = base64.urlsafe_b64encode(file.read())
                 _images_data.append(encoded_str.decode('utf8'))
 
+        if extra_args is not None:
+            logger.info(f'{self.model_name}不支持extra_args, 忽略')
+
         payload = {
             "task_tag": "hat_detect",
             "image_type": "base64",
             "images": _images_data,
-            "extra_args": [
-                {
-                    "model": "hat",
-                    'param': {
-                        # "filter_size": 0
-                        # 'conf': 1, 'iou': 0.45
-                    }
-                }
-            ]
         }
 
         data = self.preprocess(payload)
@@ -126,6 +135,9 @@ class HatDetectHatHandler(ImageHandler):
 
         confidence = self.conf
         iou_thre = self.iou
+        filter_size = self.filter_size
+        do_dedup = self.do_dedup
+        do_freq = self.dedup_freq
 
         if extra_args:
             for model_param in extra_args:
@@ -205,7 +217,7 @@ class HatDetectHatHandler(ImageHandler):
                     for idx in range(len(box_out)):
                         if class_out[idx] == 1:
 
-                            if self.image_deduplication(img_raw, list(map(int, box_out[idx])), do_dedup=do_dedup,
+                            if self.image_deduplication(img_raw, list(map(int, box_out[idx])), template_thres=self.dedup_template_thres, iou_thres=self.dedup_iou_thres, do_dedup=do_dedup,
                                                         freq=do_freq):
                                 continue
 

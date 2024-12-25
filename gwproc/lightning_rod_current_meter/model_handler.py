@@ -6,6 +6,7 @@ import base64
 import json
 import time
 import math
+import yaml
 
 import numpy as np
 from core.exceptions import error_handler
@@ -20,9 +21,10 @@ class PointerMeterDetectLightningRodCurrentMeterHandler(ImageHandler):
     def __init__(self, platform='ASCEND', device_id=None):
         super().__init__()
         self.model_name = 'lightning_rod_current_meter'
+        
+        self.read_config()
+        
         # 目标检测
-        self.conf_detect = 0.5
-        self.iou_detect = 0.5,
         self.classes_detect = ['lightning_rod_current_meter0',
                                'dial0',
                                'lightning_rod_current_meter1',
@@ -30,15 +32,11 @@ class PointerMeterDetectLightningRodCurrentMeterHandler(ImageHandler):
                                'lightning_rod_current_meter2',
                                'lightning_rod_current_meter3']
         self.num_classes = len(self.classes_detect)
-        self.filter_size = 1
+
         # 雷击计数器
-        self.conf_digit = 0.2
-        self.iou_digit = 0.5
         self.classes_digit = ['0', '1', '2', '5', '6', '8']
 
         '''新增避雷针表计2'''
-        self.conf_pose2 = 0.5
-        self.iou_pose2 = 0.5
         self.classes_pose2 = ['dian0', 'dian1', '0', '1', '2', '3']  # 'dian0' 指针远刻度端
         self.kpt_shape3 = [len(self.classes_pose2), 3]
 
@@ -77,6 +75,25 @@ class PointerMeterDetectLightningRodCurrentMeterHandler(ImageHandler):
             # TO DO: should not be here, should report an error
             pass
 
+    def read_config(self):
+        # 读取配置文件
+        _config_file = os.path.join(_cur_dir_, 'config.yaml')
+        with open(_config_file, 'r') as f:
+            config = yaml.safe_load(f)
+
+        # 目标检测
+        self.conf_detect = config['detect']['conf_thres']
+        self.iou_detect = config['detect']['iou_thres']
+        self.filter_size = config['detect']['filter_size']
+
+        # 雷击计数器
+        self.conf_digit = config['digit']['conf_thres']
+        self.iou_digit = config['digit']['iou_thres']
+
+        # 避雷针表记2
+        self.conf_pose2 = config['pose2']['conf_thres']
+        self.iou_pose2 = config['pose2']['iou_thres']
+
     def release(self):
         if self.platform == 'ASCEND':
             for _sess in self.inference_sessions:
@@ -89,26 +106,20 @@ class PointerMeterDetectLightningRodCurrentMeterHandler(ImageHandler):
             logger.info(f'Model {self.model_name} Relased')
 
 
-    def run_inference(self, image_files):
+    def run_inference(self, image_files, extra_args=None):
         _images_data = []
         for _image_file in image_files:
             with open(_image_file, 'rb') as file:
                 encoded_str = base64.urlsafe_b64encode(file.read())
                 _images_data.append(encoded_str.decode('utf8'))
 
+        if extra_args is not None:
+            logger.info(f'{self.model_name}不支持extra_args, 忽略')
+
         payload = {
             'task_tag': 'pointer_meter_detect',
             'image_type': 'base64',
-            "images": _images_data,
-            'extra_args': [
-                {
-                    'model': 'lightning_rod_current_meter',
-                    'param': {
-                        # 'conf': 0.45,
-                        # 'iou': 0.45
-                    }
-                }
-            ]
+            "images": _images_data
         }
 
         data = self.preprocess(payload)

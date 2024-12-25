@@ -6,6 +6,7 @@ import base64
 import json
 import time
 import math
+import yaml
 
 import cv2
 import numpy as np
@@ -375,10 +376,12 @@ def detect_pointer2(pointer_mask, c_point_mask, dial_mask, mode, pointer_thre, d
 class IndicatorMeterDetectCabinetMeterHandler(ImageHandler):
     def __init__(self, platform='ASCEND', device_id=None):
         super().__init__()
+        
         self.model_name = 'cabinet_meter'
+
+        self.read_config()
+
         # 目标检测
-        self.conf_detect = 0.45
-        self.iou_detect = 0.45
         self.classes_detect = ['cabinet_meter',
                                'lightning_rod',
                                'lightning_rod_ammeter',
@@ -389,15 +392,13 @@ class IndicatorMeterDetectCabinetMeterHandler(ImageHandler):
                                'pressure',
                                'pressure1']
         self.num_classes = len(self.classes_detect)
-        self.filter_size = 1
+
         # 表盘
-        self.conf_dial = 0.7
-        self.iou_dial = 0.25
         self.classes_dial = ['scale', 'centre']
+
         # 指针
-        self.conf_pointer = 0.3
-        self.iou_pointer = 0.25
         self.classes_pointer = ['pointer']
+
         # 表盘分类
         self.standard_word_list = [
             ['uneven_20A', ['0', '5', '10', '15', '20', 'A']],
@@ -408,6 +409,7 @@ class IndicatorMeterDetectCabinetMeterHandler(ImageHandler):
             ['even_200A', ['0', '50', '100', '150', '200', 'A']],
             ['even_1200V', ['0', '400', '800', '1200', 'V', 'v']],
         ]
+
         # 读数计算
         self.resolution = 0.5
         self.start_angle = 0
@@ -491,6 +493,23 @@ class IndicatorMeterDetectCabinetMeterHandler(ImageHandler):
             # TO DO: should not be here, should report an error
             pass       
             
+    def read_config(self):
+        # 读取配置文件
+        _config_file = os.path.join(_cur_dir_, 'config.yaml')
+        with open(_config_file, 'r') as f:
+            config = yaml.safe_load(f)
+
+        # 访问参数
+        self.conf_detect = config['detect']['conf_thres']
+        self.iou_detect = config['detect']['iou_thres']
+        self.filter_size = config['detect']['filter_size']
+
+        self.conf_dial = config['dial']['conf_thres']
+        self.iou_dial = config['dial']['iou_thres']
+
+        self.conf_pointer = config['pointer']['conf_thres']
+        self.iou_pointer = config['pointer']['iou_thres']
+
     def release(self):
         if self.platform == 'ASCEND':
             for _sess in self.inference_sessions:
@@ -503,26 +522,20 @@ class IndicatorMeterDetectCabinetMeterHandler(ImageHandler):
             logger.info(f'Model {self.model_name} Relased')
 
 
-    def run_inference(self, image_files):
+    def run_inference(self, image_files, extra_args=None):
         _images_data = []
         for _image_file in image_files:
             with open(_image_file, 'rb') as file:
                 encoded_str = base64.urlsafe_b64encode(file.read())
                 _images_data.append(encoded_str.decode('utf8'))
 
+        if extra_args is not None:
+            logger.info(f'{self.model_name}不支持extra_args, 忽略')
+
         payload = {
             'task_tag': 'indicator_meter_detect',
             'image_type': 'base64',
             'images': _images_data,
-            'extra_args': [
-                {
-                    'model': 'cabinet_meter',
-                    'param': {
-                        'conf': 0.45,
-                        'iou': 0.45
-                    }
-                }
-            ]
         }
 
         data = self.preprocess(payload)

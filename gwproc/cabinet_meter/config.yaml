@@ -1,0 +1,16 @@
+detect:
+  # 仪表检测控制参数, 置信度阈值(conf_thres)和交并比阈值(iou_thres), 最终在self.process_output使用
+  # 仪表检测目标过滤参数, 目标过滤阈值(filter_size), 在self.filter_by_size使用
+  conf_thres: 0.45
+  iou_thres: 0.45
+  filter_size: 1
+
+dial:
+  # 表盘检测控制参数, 置信度阈值(conf_thres)和交并比阈值(iou_thres), 最终在self.process_box_output_seg使用
+  conf_thres: 0.7
+  iou_thres: 0.25
+
+pointer:
+  # 指针检测控制参数, 置信度阈值(conf_thres)和交并比阈值(iou_thres), 最终在self.process_box_output_seg使用
+  conf_thres: 0.3
+  iou_thres: 0.25

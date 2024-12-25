@@ -1,0 +1,15 @@
+detect:
+  # 安全帽和人检测控制参数, 置信度阈值(conf_thres)和交并比阈值(iou_thres), 在utils.commons.ImageHandler.process_output使用
+  conf_thres: 0.6
+  iou_thres: 0.5
+
+filter:
+  # 安全帽和人检测目标过滤参数, 目标过滤阈值(filter_size), 在utils.commons.ImageHandler.filter_by_size使用
+  filter_size: 1
+
+dedup:
+  # 安全帽和人检测去重控制参数, 是否去重(enable, 0/1), 模板匹配阈值(template_thres), 目标匹配交并比阈值(iou_thres), 图片库重置频率(freq, 'm'/'h'/'d'), 在utils.commons.ImageHandler.image_deduplication使用
+  enable: 1
+  template_thres: 0.8
+  iou_thres: 0.5
+  time_freq: 'm'
