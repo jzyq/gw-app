@@ -437,7 +437,7 @@ class ImageHandler(BaseHandler):
             cv2_img = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB)
         result = cv2.matchTemplate(cv2_img, cv2_img_crop, cv2.TM_CCOEFF_NORMED)
         locations = np.unravel_index(np.argmax(result), result.shape)
-        print('最大相似度：', round(float(result[locations]), 3))
+        #print('最大相似度：', round(float(result[locations]), 3))
         det = []
         if float(result[locations]) >= 0.8:
             locations = locations[::-1]

@@ -524,10 +524,24 @@ class IndicatorMeterDetectCabinetMeterHandler(ImageHandler):
 
     def run_inference(self, image_files, extra_args=None):
         _images_data = []
+        
+        image_result = True
         for _image_file in image_files:
-            with open(_image_file, 'rb') as file:
-                encoded_str = base64.urlsafe_b64encode(file.read())
-                _images_data.append(encoded_str.decode('utf8'))
+            try:
+                from ..gwproc import GWProc
+            except:
+                from gwproc import GWProc
+
+            _result, _data = GWProc.read_image(_image_file)
+            
+            if _result:
+                _encoded_str = base64.urlsafe_b64encode(_data)
+                _images_data.append(_encoded_str.decode('utf8'))
+            else:
+                image_result = False
+        if image_result == False:
+            #TODO: generate error response for image failure
+            pass
 
         if extra_args is not None:
             logger.info(f'{self.model_name}不支持extra_args, 忽略')
@@ -717,7 +731,9 @@ class IndicatorMeterDetectCabinetMeterHandler(ImageHandler):
     def postprocess(self, data, *args, **kwargs):
         return data
 
+# Note: ftp服务器在首次实例化GWProc时设置，无法在此单独进行测试
 
+"""
 if __name__ == '__main__':
     input_images = [os.path.join(_cur_dir_,'test_case/cabinet_meter_20A.jpg')]
 
@@ -728,3 +744,4 @@ if __name__ == '__main__':
 
     obj.release()
     print("Done!")
+"""

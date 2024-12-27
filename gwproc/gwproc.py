@@ -1,16 +1,30 @@
-import json
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+#import json
 from pathlib import Path
 
-import cv2
+#import cv2
 import numpy as np
-import torch
+#import torch
 from enum import Enum
+
+import os
+#import requests
+from PIL import Image
+from io import BytesIO
+from ftplib import FTP, error_perm
 
 from hat.model_handler import HatDetectHatHandler
 from intrusion.model_handler import IntrusionDetectIntrusionHandler
 from wandering.model_handler import BehaviorDetectWanderingHandler
 from lightning_rod_current_meter.model_handler import PointerMeterDetectLightningRodCurrentMeterHandler
 from cabinet_meter.model_handler import IndicatorMeterDetectCabinetMeterHandler
+
+from utils.log_config import get_logger
+
+logger = get_logger()
 
 model_classes = { "hat": HatDetectHatHandler, 
                   "intrusion": IntrusionDetectIntrusionHandler,
@@ -22,7 +36,16 @@ model_classes = { "hat": HatDetectHatHandler,
 PLATFORM = ['ONNX', 'ASCEND']
     
 class GWProc:
-    def __init__(self, model_name, platform='ASCEND', device_id=None):
+    ftp_config = None #shared ftp config
+    
+    def __init__(self, model_name, platform='ASCEND', device_id=None, ftp=None):
+        if ftp is None:
+            if self.__class__.ftp_config is None:
+                raise ValueError(
+                    f"GWProc initialization failed, missing ftp configuration!")
+        else:
+            self.__class__.ftp_config = ftp
+            
         # Validate the model type
         if model_name not in model_classes:
             raise ValueError(
@@ -41,8 +64,51 @@ class GWProc:
     def release(self) -> None:
         self.model_instance.release()
 
+    # 图像通过ftp服务服务器提供，API调用中URL没有ftp头，仅包括服务器内的路径
+    @classmethod
+    def read_image(cls, path):
+        try:
+            _connected = False
+            _result = False
+            _data = None
 
+            # Connect to the FTP server
+            ftp = FTP()
+            ftp.connect(cls.ftp_config['ip'], cls.ftp_config['port'])
+            ftp.login(user=cls.ftp_config['user'],passwd=cls.ftp_config['password'])
+            _connected = True
+
+            image_data = BytesIO()
+            ftp.retrbinary(f'RETR {path}', image_data.write)
+            #ftp.quit()
+
+            image_data.seek(0)
+            _data = image_data.read()
+            _result = True
+
+        except error_perm as e:
+            logger.error(f"FTP permission error: {e}")
+        except FileNotFoundError:
+            logger.error("The specified image file was not found.")
+        except Exception as e:
+            logger.error(f"An error occurred: {e}")
+        finally:
+            # Ensure the FTP connection is closed
+            if _connected:
+                ftp.quit()
+                
+            return _result, _data
+
+# Note: 存在循环import, 不要在此进行测试
+"""
 # Example usage
+ftpDict = {
+    "ip": "192.168.0.164",
+    "port": 2121,
+    "user": "gw",
+    "password": "gwPasw0rd"
+}
+
 if __name__ == "__main__":
     # Load the configuration for the specific task
     import time
@@ -58,7 +124,7 @@ if __name__ == "__main__":
     #model = GWProc(model_name='intrusion', platform='ASCEND', device_id=0)
     #model = GWProc(model_name='wandering', platform='ASCEND', device_id=0)
     #model = GWProc(model_name='lightning_rod_current_meter', platform='ASCEND', device_id=0)
-    model = GWProc(model_name='cabinet_meter', platform='ASCEND', device_id=0)
+    model = GWProc(model_name='cabinet_meter', platform='ONNX', device_id=0,ftp=ftpDict)
     t1 = time.time()
     
     # Load an image for testing (replace with actual image path)
@@ -86,3 +152,4 @@ if __name__ == "__main__":
     model.release()
 
     print("Done!")
+"""
