@@ -57,9 +57,9 @@ class GWProc:
 
         self.model_instance = model_classes[model_name](platform=platform, device_id=device_id)
 
-    def run_inference(self, input_image):
+    def run_inference(self, input_image, extra_args=None):
         """Run inference using the specific model instance."""
-        return self.model_instance.run_inference(input_image)
+        return self.model_instance.run_inference(input_image, extra_args=extra_args)
 
     def release(self) -> None:
         self.model_instance.release()

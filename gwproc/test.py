@@ -1,3 +1,4 @@
+import json
 from gwproc import GWProc
 
 # Example usage
@@ -7,6 +8,31 @@ ftpDict = {
     "user": "gw",
     "password": "gwPasw0rd"
 }
+
+json_str = '''{
+    "requestHostIp": "10.11.120.39",
+    "requestHostPort": "8766",
+    "requestId": "1234abcd-1a2b-4444-3c4d-1a2b3c4d5e6f",
+    "objectList": [
+        {
+            "objectId": "123-1",
+            "typeList": [
+                "wcaqm",
+                "wcgz",
+                "hxq_gjbs",
+                "xy"
+            ],
+            "imageUrlList": [
+                "wcaqm1.jpg"
+            ],
+            "imageNormalUrlPath": "",
+            "pos": [{"areas": [ {"x": 100, "y": 150}, {"x": 800, "y": 1200}]},
+                    {"areas": [ {"x": 960, "y": 960}]},
+                    {"areas": [ {"x": 196, "y": 139}, {"x": 447, "y": 79}, {"x": 1155, "y": 550}, {"x": 764, "y": 650}]}
+            ]
+        }
+    ]
+}'''
 
 if __name__ == "__main__":
     # Load the configuration for the specific task
@@ -42,7 +68,8 @@ if __name__ == "__main__":
     #input_images = ['cabinet_meter/test_case/cabinet_meter_20A.jpg']
 
     # Run inference
-    results = model.run_inference(input_images)
+    extra_args= json.loads(json_str)
+    results = model.run_inference(input_images, extra_args=extra_args)
     t2 = time.time()
 
     print(f'TIME: {t1-t0:.4f}, {t2-t1:.4f}')

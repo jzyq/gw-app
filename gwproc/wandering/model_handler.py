@@ -891,19 +891,26 @@ class BehaviorDetectWanderingHandler(ImageHandler):
             #TODO: generate error response for image failure
             pass
 
-        _areas_points=[]
+        _areas=[]
         if extra_args is not None:
             if extra_args.get('objectList') is not None:
                 if extra_args['objectList'][0].get('pos') is not None:
-                    if extra_args['objectList'][0]['pos'][0].get('areas') is not None:
-                        #为维持与国网接口命名规则的一致性，目前只支持1个areas
-                        for _p in extra_args['objectList'][0]['pos'][0]['areas']:
-                            _areas_points.append([_p["x"], _p["y"]])
+                    _pos_items = extra_args['objectList'][0].get('pos')
+                    
+                    for _i,_pos in enumerate(_pos_items):
+                        if _pos.get('areas') is not None:
+                            _point_list = _pos.get('areas')
                             
-                        if len(_areas_points) == 2:
-                            _areas_points = self.__class__.points2box(_areas_points[0], _areas_points[1])
+                            _area_points=[]
+                            for _p in _point_list:
+                                _area_points.append([_p["x"], _p["y"]])
+                    
+                            if len(_area_points) == 2:
+                                _area_points = self.__class__.points2box(_area_points[0], _area_points[1])
+
+                        _areas.append({"area_id": (_i+1), "points": _area_points})
                             
-        if len(_areas_points) == 0:
+        if len(_areas) == 0:
             payload = {
                 "task_tag": "behavior_detect",
                 "image_type": "base64",
@@ -918,13 +925,12 @@ class BehaviorDetectWanderingHandler(ImageHandler):
                     {
                         "model": self.model_name,
                         'param': {
-                            "areas": [
-                                {"area_id": 1, "points": _areas_points},
-                            ]
+                            "areas": _areas
                         }
                     }
                 ]
             }
+
             
         """
         payload = {
