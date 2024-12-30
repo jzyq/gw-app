@@ -77,24 +77,12 @@ class GWProc:
     def run_inference(self, image_files, extra_args=None):
         """Run inference using the specific model instance."""
         
-        _images_data = []
-        _images_error = ""
-
-        image_result = True
-        for _image_file in image_files:
-            _result, _data = GWProc.read_image(_image_file)
-            
-            if _result:
-                _encoded_str = base64.urlsafe_b64encode(_data)
-                _images_data.append(_encoded_str.decode('utf8'))
-            else:
-                image_result = False
-                _images_error += _data
-
-        if image_result == False:
-            return GWProc.result_json(self.model_instance.model_name, GWProc_Result.IMAGE_FAIL, desc=_images_error)
+        _result, _return_data = GWProc.read_images(image_files)
         
-        return self.model_instance.run_inference(_images_data, extra_args=extra_args)
+        if _result == False:
+            return GWProc.result_json(self.model_instance.model_name, GWProc_Result.IMAGE_FAIL, desc=_return_data)
+        else:
+            return self.model_instance.run_inference(_return_data, extra_args=extra_args)
 
     def release(self) -> None:
         self.model_instance.release()
@@ -139,6 +127,62 @@ class GWProc:
                 ftp.quit()
                 
             return _result, _data
+
+    # 图像通过ftp服务服务器提供，API调用中URL没有ftp头，仅包括服务器内的路径
+    @classmethod
+    def read_images(cls, files_path):
+        # Connect to the FTP server
+        try:
+            ftp = FTP()
+            ftp.connect(cls.ftp_config['ip'], cls.ftp_config['port'])
+            ftp.login(user=cls.ftp_config['user'],passwd=cls.ftp_config['password'])
+        except error_perm as e:
+            _error_message = f"Login failed: {e}"
+            return False, _error_message
+        except Exception as e:
+            _error_message = f"An error occurred during login: {e}"
+            return False, _error_message
+
+        _result = True
+        _images_data = []
+        _error_message = ""
+        _newline = ""
+
+        for _path in files_path:
+            try:
+                _data = BytesIO()
+                ftp.retrbinary(f'RETR {_path}', _data.write)
+                _data.seek(0)
+                _encoded_str = base64.urlsafe_b64encode(_data.read())
+                _images_data.append(_encoded_str.decode('utf8'))
+            except error_perm as e:
+                _result = False
+                if str(e).startswith('550'):
+                    _msg = f"File not found on FTP server: {_path}"
+                else:
+                    _msg = f"Permission error: {e}"
+                logger.error(_msg)
+                _error_message += _newline+_msg
+                _newline='\n'           
+            except FileNotFoundError:
+                _result = False
+                _msg =f"The specified image file {_path} was not found."
+                logger.error(_msg)
+                _error_message += _newline+_msg
+                _newline='\n'
+            except Exception as e:
+                _result = False
+                _msg = f"An error occurred: {e}"
+                logger.error(_msg)
+                _error_message += _newline+_msg
+                _newline='\n'
+            
+        ftp.quit()
+        
+        if _result:
+            return _result, _images_data
+        else:
+            return _result, _error_message
 
     @classmethod
     def result_json(cls, type, result, value="0", desc="正常", conf=0.0, pos=[]):
