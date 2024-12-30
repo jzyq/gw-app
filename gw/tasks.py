@@ -5,6 +5,7 @@ import redis
 from .redis_keys import RedisKeys
 from .settings import get_app_settings
 from .utils import generate_a_random_hex_str
+from gw.models import CreateInferenceTaskRequest
 
 _settings = get_app_settings()
 
@@ -66,15 +67,11 @@ class TaskPool(redis.Redis):
         super().__init__(*args, **kwargs)
         self._task_ttl = task_ttl
 
-    def new(self, model_id: str, image_url: str, post_process: str, callback: str, task_id: str = None) -> Task:
-        if task_id is None:
-            task_id = generate_a_random_hex_str(self.TASK_ID_LENGTH)
+    def new(self, task_id: str, callback: str, raw_request: CreateInferenceTaskRequest) -> Task:
         self.hset(RedisKeys.task(task_id), mapping={
             "task_id": task_id,
-            "model_id": model_id,
-            "image_url": image_url,
-            "post_process": post_process,
-            "callback": callback
+            "callback": callback,
+            "raw_request": raw_request.model_dump_json()
         })
         self.expire(RedisKeys.task(task_id), self._task_ttl)
         return Task(tid=task_id, connection_pool=self.connection_pool)
