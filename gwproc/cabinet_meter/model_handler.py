@@ -521,39 +521,22 @@ class IndicatorMeterDetectCabinetMeterHandler(ImageHandler):
         else:
             logger.info(f'Model {self.model_name} Relased')
 
-    def run_inference(self, image_files, extra_args=None):
-        _images_data = []
-        _images_error = ""
-        
-        image_result = True
-        for _image_file in image_files:
-            try:
-                from ..gwproc import GWProc, GWProc_Result
-            except:
-                from gwproc import GWProc, GWProc_Result
-
-            _result, _data = GWProc.read_image(_image_file)
-            
-            if _result:
-                _encoded_str = base64.urlsafe_b64encode(_data)
-                _images_data.append(_encoded_str.decode('utf8'))
-            else:
-                image_result = False
-                _images_error += _data
-
-        if image_result == False:
-            return GWProc.result_json(self.model_name, GWProc_Result.IMAGE_FAIL, desc=_images_error)
-
+    def run_inference(self, images_data, extra_args=None):
         if extra_args is not None:
             logger.info(f'{self.model_name}不支持extra_args, 忽略')
 
         payload = {
             'task_tag': 'indicator_meter_detect',
             'image_type': 'base64',
-            'images': _images_data,
+            'images': images_data,
         }
 
         try:
+            try:
+                from ..gwproc import GWProc,GWProc_Result
+            except:
+                from gwproc import GWProc,GWProc_Result
+
             data = self.preprocess(payload)
             data = self.inference(data)
             data = self.postprocess(data)

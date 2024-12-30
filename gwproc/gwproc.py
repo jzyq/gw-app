@@ -3,6 +3,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 #import json
+import base64
 from pathlib import Path
 
 #import cv2
@@ -73,9 +74,27 @@ class GWProc:
 
         self.model_instance = model_classes[model_name](platform=platform, device_id=device_id)
 
-    def run_inference(self, input_image, extra_args=None):
+    def run_inference(self, image_files, extra_args=None):
         """Run inference using the specific model instance."""
-        return self.model_instance.run_inference(input_image, extra_args=extra_args)
+        
+        _images_data = []
+        _images_error = ""
+
+        image_result = True
+        for _image_file in image_files:
+            _result, _data = GWProc.read_image(_image_file)
+            
+            if _result:
+                _encoded_str = base64.urlsafe_b64encode(_data)
+                _images_data.append(_encoded_str.decode('utf8'))
+            else:
+                image_result = False
+                _images_error += _data
+
+        if image_result == False:
+            return GWProc.result_json(self.model_instance.model_name, GWProc_Result.IMAGE_FAIL, desc=_images_error)
+        
+        return self.model_instance.run_inference(_images_data, extra_args=extra_args)
 
     def release(self) -> None:
         self.model_instance.release()
