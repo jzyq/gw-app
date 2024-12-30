@@ -130,13 +130,14 @@ class IntrusionDetectIntrusionHandler(ImageHandler):
     
     def run_inference(self, image_files, extra_args=None):
         _images_data = []
-        image_result = True
+        _images_error = ""
 
+        image_result = True
         for _image_file in image_files:
             try:
-                from ..gwproc import GWProc
+                from ..gwproc import GWProc,GWProc_Result
             except:
-                from gwproc import GWProc
+                from gwproc import GWProc,GWProc_Result
 
             _result, _data = GWProc.read_image(_image_file)
             
@@ -145,9 +146,10 @@ class IntrusionDetectIntrusionHandler(ImageHandler):
                 _images_data.append(_encoded_str.decode('utf8'))
             else:
                 image_result = False
+                _images_error += _data
+
         if image_result == False:
-            #TODO: generate error response for image failure
-            pass
+            return GWProc.result_json(self.model_name, GWProc_Result.IMAGE_FAIL, desc=_images_error)
                 
         _areas=[]
         if extra_args is not None:
@@ -168,32 +170,67 @@ class IntrusionDetectIntrusionHandler(ImageHandler):
 
                         _areas.append({"area_id": (_i+1), "points": _area_points})
                             
-        if len(_areas) == 0:
-            payload = {
-                "task_tag": "intrusion_detect",
-                "image_type": "base64",
-                "images": _images_data,
-            }
-        else:
-            payload = {
-                "task_tag": "intrusion_detect",
-                "image_type": "base64",
-                "images": _images_data,
-                "extra_args": [
-                    {
-                        "model": self.model_name,
-                        'param': {
-                            "areas": _areas
-                        }
+        if len(_areas) == 0: # 没有extra_args将会采用初始化中的areas
+            _areas=self.areas
+            
+        payload = {
+            "task_tag": "intrusion_detect",
+            "image_type": "base64",
+            "images": _images_data,
+            "extra_args": [
+                {
+                    "model": self.model_name,
+                    'param': {
+                        "areas": _areas
                     }
-                ]
-            }
+                }
+            ]
+        }
 
-        data = self.preprocess(payload)
-        data = self.inference(data)
-        data = self.postprocess(data)
+        try:
+            data = self.preprocess(payload)
+            data = self.inference(data)
+            data = self.postprocess(data)
+
+            #当前仅支持单输入单输出, 仅取[0]号元素
+            _defects = data['data'][0]['defect_data']
+            if len(_defects) == 0:
+                return GWProc.result_json(self.model_name, GWProc_Result.INFER_ZERO_DETECT)
+            else:
+                _max_conf = 0.0
+                _pos = []
+                for _def in _defects:
+                    _aid = _def['extra_info']['area_id']
+                    #_defect_area=None
+                    for _area in _areas:
+                        if _area['area_id']== _aid:
+                            _defect_points=_area['points']
+                            break
+                    if _defect_points is None:
+                        raise ValueError(f'找到返回区域代码{_aid}对应监控区域, 要求监控区域为{_areas} ')
+                    else:
+                        _defect_areas_points=[]
+                        for _p in _defect_points:
+                            _defect_areas_points.append({"x":_p[0],"y":_p[1]})
+                        _defect_areas={"areas": _defect_areas_points}
+
+                    if _def['confidence'] > _max_conf:
+                        _max_conf=_def['confidence']
+                        _desc = _def['defect_desc']
+                        _pos=[_defect_areas]+_pos
+                    else:
+                        _pos=_pos+[_defect_areas]
+
+                return GWProc.result_json(self.model_name, GWProc_Result.INFER_AND_DETECT, value="1", desc=_desc, conf=_max_conf/100.0, pos=_pos)
+        except Exception as e:
+            _data = f"{self.model_name}: An error occurred: {e}"
+            logger.error(_data)
+            return GWProc.result_json(self.model_name, GWProc_Result.INFER_FAIL, _data)
+        # data = self.preprocess(payload)
+        # data = self.inference(data)
+        # data = self.postprocess(data)
         
-        return json.dumps(data, indent=4, ensure_ascii=False)
+        # return json.dumps(data, indent=4, ensure_ascii=False)
 
     def filter_by_size(self, output, filter_size=25, reverse=None):
         # obj_list: output from self.plate_postprocessing [box(4), score(1), landmark(8), class(0)]

@@ -89,13 +89,14 @@ class HatDetectHatHandler(ImageHandler):
 
     def run_inference(self, image_files, extra_args=None):
         _images_data = []
+        _images_error = ""
 
         image_result = True
         for _image_file in image_files:
             try:
-                from ..gwproc import GWProc
+                from ..gwproc import GWProc,GWProc_Result
             except:
-                from gwproc import GWProc
+                from gwproc import GWProc,GWProc_Result
 
             _result, _data = GWProc.read_image(_image_file)
             
@@ -104,9 +105,10 @@ class HatDetectHatHandler(ImageHandler):
                 _images_data.append(_encoded_str.decode('utf8'))
             else:
                 image_result = False
+                _images_error += _data
+
         if image_result == False:
-            #TODO: generate error response for image failure
-            pass
+            return GWProc.result_json(self.model_name, GWProc_Result.IMAGE_FAIL, desc=_images_error)
 
         if extra_args is not None:
             logger.info(f'{self.model_name}不支持extra_args, 忽略')
@@ -117,11 +119,32 @@ class HatDetectHatHandler(ImageHandler):
             "images": _images_data,
         }
 
-        data = self.preprocess(payload)
-        data = self.inference(data)
-        data = self.postprocess(data)
+        try:
+            data = self.preprocess(payload)
+            data = self.inference(data)
+            data = self.postprocess(data)
 
-        return json.dumps(data, indent=4, ensure_ascii=False)
+            #当前仅支持单输入单输出, 仅取[0]号元素
+            _defects = data['data'][0]['defect_data']
+            if len(_defects) == 0:
+                return GWProc.result_json(self.model_name, GWProc_Result.INFER_ZERO_DETECT)
+            else:
+                _max_conf = 0.0
+                _pos = []
+                for _def in _defects:
+                    _areas = {"areas": [{"x":_def['x1'],"y":_def['y1']},{"x":_def['x2'],"y":_def['y2']}]}
+                    if _def['confidence'] > _max_conf:
+                        _max_conf=_def['confidence']
+                        _desc = _def['defect_desc']
+                        _pos=[_areas]+_pos
+                    else:
+                        _pos=_pos+[_areas]
+
+                return GWProc.result_json(self.model_name, GWProc_Result.INFER_AND_DETECT, value="1", desc=_desc, conf=_max_conf/100.0, pos=_pos)
+        except Exception as e:
+            _data = f"{self.model_name}: An error occurred: {e}"
+            logger.error(_data)
+            return GWProc.result_json(self.model_name, GWProc_Result.INFER_FAIL, _data)
 
     def preprocess(self, data, **kwargs):
         return data

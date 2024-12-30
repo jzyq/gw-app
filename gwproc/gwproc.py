@@ -11,6 +11,7 @@ import numpy as np
 from enum import Enum
 
 import os
+import json
 #import requests
 from PIL import Image
 from io import BytesIO
@@ -32,6 +33,21 @@ model_classes = { "hat": HatDetectHatHandler,
                   "lightning_rod_current_meter": PointerMeterDetectLightningRodCurrentMeterHandler,
                   "cabinet_meter": IndicatorMeterDetectCabinetMeterHandler
 }   
+
+class GWProc_Result(Enum):
+    IMAGE_FAIL=1
+    INVALID_PROC=2
+    INFER_FAIL=3
+    INFER_ZERO_DETECT=4
+    INFER_AND_DETECT=5
+
+GWProc_result_dict = {
+    GWProc_Result.IMAGE_FAIL:"2001", 
+    GWProc_Result.INVALID_PROC:"2002", 
+    GWProc_Result.INFER_FAIL:"2002", 
+    GWProc_Result.INFER_ZERO_DETECT:"2000", 
+    GWProc_Result.INFER_AND_DETECT:"2000"
+}
 
 PLATFORM = ['ONNX', 'ASCEND']
     
@@ -87,17 +103,39 @@ class GWProc:
             _result = True
 
         except error_perm as e:
-            logger.error(f"FTP permission error: {e}")
+            if str(e).startswith('550'):
+                _data = f"File not found on FTP server: {path}"
+            else:
+                _data = f"Permission error: {e}"
+            logger.error(_data)
         except FileNotFoundError:
-            logger.error("The specified image file was not found.")
+            _data =f"The specified image file {path} was not found."
+            logger.error(_data)
         except Exception as e:
-            logger.error(f"An error occurred: {e}")
+            _data = f"An error occurred: {e}"
+            logger.error(_data)
         finally:
             # Ensure the FTP connection is closed
             if _connected:
                 ftp.quit()
                 
             return _result, _data
+
+    @classmethod
+    def result_json(cls, type, result, value="0", desc="正常", conf=0.0, pos=[]):
+        assert isinstance(result,GWProc_Result), f'返回结果类型{result}非法'
+
+        json_data = {
+            "type": type,
+            "value": value,
+            "code": GWProc_result_dict[result],
+            "resImageUrl": "",
+            "pos": pos,
+            "conf": f'{conf:.4f}',
+            "desc":desc
+        }
+        
+        return json.dumps(json_data, indent=4, ensure_ascii=False)
 
 # Note: 存在循环import, 不要在此进行测试
 """
