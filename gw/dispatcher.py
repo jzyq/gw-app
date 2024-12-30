@@ -6,8 +6,22 @@ from redis import ConnectionPool, Redis
 from .runner import RunnerPool
 from .tasks import Task
 from .redis_keys import RedisKeys
+from abc import ABC, abstractmethod
 
-class Dispatcher:
+
+class Dispatcher(ABC):
+
+    @property
+    @abstractmethod
+    def runner_num(self) -> int:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def dispatch(self, task: Task):
+        raise NotImplementedError()
+
+
+class ModuleDispatcher(Dispatcher):
 
     def __init__(
         self,
@@ -94,3 +108,19 @@ class Dispatcher:
         # Just report a error and maybe try again later.
         logger.debug(f"no resource to dispatch task [{task.task_id}]")
         raise Exception("too busy.")
+
+
+class ProcDispatcher(Dispatcher):
+
+    def __init__(self, rdb: Redis, runner_pool: RunnerPool, max_runner: int = 10):
+        self._rdb = rdb
+        self._runnerpool = runner_pool
+        self._max_runner_num = max_runner
+        self._rdb.set(RedisKeys.max_runner_num, max_runner)
+        
+    @Dispatcher.runner_num.getter
+    def runner_num(self) -> int:
+        return int(self._rdb.get(RedisKeys.max_runner_num))
+
+    def dispatch(self, task):
+        pass

@@ -5,7 +5,7 @@ import threading
 import redis
 from loguru import logger
 
-from gw.dispatcher import Dispatcher
+from gw.dispatcher import ProcDispatcher
 from gw.runner import RunnerPool, WorkerStarter
 from gw.settings import get_app_settings
 from gw.streams import Streams
@@ -52,9 +52,9 @@ def main():
     logger.info(f"connect runner pool, use {type(starter)} as starter.")
 
     # Initlize dispatcher.
-    dispatcher = Dispatcher(rdb=rdb,
-                            runner_pool=runnerpool,
-                            max_runner=settings.runner_slot_num)
+    dispatcher = ProcDispatcher(rdb=rdb,
+                                runner_pool=runnerpool,
+                                max_runner=settings.runner_slot_num)
     logger.info(f"init dispatcher, max runner number {dispatcher.runner_num}")
 
     # Make consumer name to receive message.
@@ -95,8 +95,7 @@ def main():
         try:
             runnerpool.clean_dead_runners()
             dispatcher.dispatch(task)
-            logger.info(f"task dispatch, id {task.task_id}, " +
-                        f"use model {task.model_id}")
+            logger.info(f"task dispatch, id {task.task_id}")
             msg.ack()
         except Exception as e:
             # TODO: handle exceptions.

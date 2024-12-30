@@ -2,10 +2,9 @@ from typing import Optional
 
 import redis
 
+from .models import CreateInferenceTaskRequest
 from .redis_keys import RedisKeys
 from .settings import get_app_settings
-from .utils import generate_a_random_hex_str
-from gw.models import CreateInferenceTaskRequest
 
 _settings = get_app_settings()
 
@@ -21,28 +20,16 @@ class Task(redis.Redis):
         return self._tid
 
     @property
-    def model_id(self) -> str:
-        return self.hget(RedisKeys.task(self.task_id), "model_id").decode()
-
-    @property
-    def post_process(self) -> str:
-        return self.hget(RedisKeys.task(self.task_id), "post_process").decode()
-
-    @property
-    def image_url(self) -> str:
-        return self.hget(RedisKeys.task(self.task_id), "image_url").decode()
-
-    @property
     def callback(self) -> str:
         return self.hget(RedisKeys.task(self.task_id), "callback").decode()
 
     @property
-    def inference_result(self) -> Optional[str]:
-        res: bytes = self.get(RedisKeys.inference_result(self.task_id))
-        return res.decode() if res is not None else res
+    def raw_request(self) -> CreateInferenceTaskRequest:
+        data = self.hget(RedisKeys.task(self.task_id), "raw_request").decode()
+        return CreateInferenceTaskRequest.model_validate_json(data)
 
     @property
-    def postprocess_result(self) -> Optional[str]:
+    def inference_result(self) -> Optional[str]:
         res: bytes = self.get(RedisKeys.inference_result(self.task_id))
         return res.decode() if res is not None else res
 
@@ -53,10 +40,6 @@ class Task(redis.Redis):
     @inference_result.setter
     def inference_result(self, data: str):
         self.set(RedisKeys.inference_result(self.task_id), data, ex=self.ttl)
-
-    @postprocess_result.setter
-    def postprocess_result(self, data: str):
-        self.set(RedisKeys.postprocess_result(self.task_id), data, ex=self.ttl)
 
 
 class TaskPool(redis.Redis):
