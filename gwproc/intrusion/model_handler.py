@@ -89,10 +89,11 @@ class IntrusionDetectIntrusionHandler(ImageHandler):
             _areas = []
             
             for _key, _value in config['areas'].items():
-                if len(_value) == 2: # (left,top) - (right,bottom)
-                    _areas.append({"area_id": int(_key), "points": self.__class__.points2box(_value[0], _value[1])})
-                else:
-                    _areas.append({"area_id": int(_key), "points": _value})
+                # if len(_value) == 2: # (left,top) - (right,bottom)
+                #     _areas.append({"area_id": int(_key), "points": self.__class__.points2box(_value[0], _value[1])})
+                # else:
+                #     _areas.append({"area_id": int(_key), "points": _value})
+                _areas.append({"area_id": int(_key), "points": _value})
             
             if len(_areas) != 0:
                 self.areas=_areas
@@ -143,14 +144,22 @@ class IntrusionDetectIntrusionHandler(ImageHandler):
                             for _p in _point_list:
                                 _area_points.append([_p["x"], _p["y"]])
                     
-                            if len(_area_points) == 2:
-                                _area_points = self.__class__.points2box(_area_points[0], _area_points[1])
+                            # if len(_area_points) == 2:
+                            #     _area_points = self.__class__.points2box(_area_points[0], _area_points[1])
 
                         _areas.append({"area_id": (_i+1), "points": _area_points})
                             
         if len(_areas) == 0: # 没有extra_args将会采用初始化中的areas
             _areas=self.areas
             
+        #检查每个区域，若为2点则转为4点坐标
+        _payload_areas = []
+        for _area in _areas:
+            if len(_area['points']) == 2:
+                _payload_areas.append({"area_id": _area['area_id'], "points": self.__class__.points2box(_area['points'][0], _area['points'][1])})
+            else:
+                _payload_areas.append(_area)
+
         payload = {
             "task_tag": "intrusion_detect",
             "image_type": "base64",
@@ -159,7 +168,7 @@ class IntrusionDetectIntrusionHandler(ImageHandler):
                 {
                     "model": self.model_name,
                     'param': {
-                        "areas": _areas
+                        "areas": _payload_areas
                     }
                 }
             ]
@@ -337,7 +346,10 @@ class IntrusionDetectIntrusionHandler(ImageHandler):
 
                     person_counts = 0
                     for i, pred in enumerate(preds):
+                        """
                         # 增加重复图片检测，识别为True直接跳过
+                        # TODO: 这里有个问题，检测重复目标前没有先检测该目标是否在指定区域内，区域外目标也会被记录，在检测另外区域时此目标会被认为重复目标而忽略
+                        #       此问题会导致同一画面，多个监控区域都有目标情况下， 只返回第一个发现，其他发现会被认为是重复目标
                         if self.image_deduplication(img_raw, list(map(int, box_out[i])), 
                                                     template_thres=self.dedup_template_thres, iou_thres=self.dedup_iou_thres, 
                                                     do_dedup=do_dedup, freq=time_freq):
@@ -351,6 +363,18 @@ class IntrusionDetectIntrusionHandler(ImageHandler):
                             continue
                         if xyz2[-1] > self.kpt_thres and self.is_in_poly(xyz2[:2], points):
                             person_counts += 1
+                        """
+                        pred_kpt = pred_kpts[i]
+                        # 左下和右下(最后两个关键点)任意一个点在区域内
+                        xyz1 = pred_kpt[-1]
+                        xyz2 = pred_kpt[-2]
+                        if (xyz1[-1] > self.kpt_thres and self.is_in_poly(xyz1[:2], points)) or (xyz2[-1] > self.kpt_thres and self.is_in_poly(xyz2[:2], points)):
+                            if self.image_deduplication(img_raw, list(map(int, box_out[i])), 
+                                                        template_thres=self.dedup_template_thres, iou_thres=self.dedup_iou_thres, 
+                                                        do_dedup=do_dedup, freq=time_freq):
+                                continue
+                            person_counts += 1
+                            continue
                     if person_counts:
                         conf = int(pred[4] * 100)
                         defect_data.append({"defect_name": "intrusion",
