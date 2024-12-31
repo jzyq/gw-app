@@ -849,10 +849,11 @@ class BehaviorDetectWanderingHandler(ImageHandler):
             _areas = []
             
             for _key, _value in config['areas'].items():
-                if len(_value) == 2: # (left,top) - (right,bottom)
-                    _areas.append({"area_id": int(_key), "points": self.__class__.points2box(_value[0], _value[1])})
-                else:
-                    _areas.append({"area_id": int(_key), "points": _value})
+                # if len(_value) == 2: # (left,top) - (right,bottom)
+                #     _areas.append({"area_id": int(_key), "points": self.__class__.points2box(_value[0], _value[1])})
+                # else:
+                #     _areas.append({"area_id": int(_key), "points": _value})
+                _areas.append({"area_id": int(_key), "points": _value})
             
             if len(_areas) != 0:
                 self.areas=_areas
@@ -883,13 +884,21 @@ class BehaviorDetectWanderingHandler(ImageHandler):
                             for _p in _point_list:
                                 _area_points.append([_p["x"], _p["y"]])
                     
-                            if len(_area_points) == 2:
-                                _area_points = self.__class__.points2box(_area_points[0], _area_points[1])
+                            # if len(_area_points) == 2:
+                            #     _area_points = self.__class__.points2box(_area_points[0], _area_points[1])
 
                         _areas.append({"area_id": (_i+1), "points": _area_points})
                             
         if len(_areas) == 0: # 没有extra_args将会采用初始化中的areas
             _areas=self.areas
+            
+        #检查每个区域，若为2点则转为4点坐标
+        _payload_areas = []
+        for _area in _areas:
+            if len(_area['points']) == 2:
+                _payload_areas.append({"area_id": _area['area_id'], "points": self.__class__.points2box(_area['points'][0], _area['points'][1])})
+            else:
+                _payload_areas.append(_area)
 
         payload = {
         "task_tag": "behavior_detect",
@@ -899,7 +908,7 @@ class BehaviorDetectWanderingHandler(ImageHandler):
                 {
                     "model": self.model_name,
                     'param': {
-                        "areas": _areas
+                        "areas": _payload_areas
                     }
                 }
             ]
