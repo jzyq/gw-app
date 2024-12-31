@@ -772,7 +772,8 @@ class BehaviorDetectWanderingHandler(ImageHandler):
         self.new_shape = [640, 640]
 
         # 设置缺省徘徊控制区域为全图像, 配置文件和接口调用中若有明确定义将覆盖缺省定义
-        self.areas=[{"area_id": 0, "points": self.__class__.points2box([0,0], [self.new_shape[1]-1, self.new_shape[0]-1])}]
+        #self.areas=[{"area_id": 0, "points": self.__class__.points2box([0,0], [self.new_shape[1]-1, self.new_shape[0]-1])}]
+        self.areas=[{"area_id": 0, "points": [[0,0], [self.new_shape[1]-1, self.new_shape[0]-1]]}]
 
         self.read_config()
 
@@ -818,15 +819,6 @@ class BehaviorDetectWanderingHandler(ImageHandler):
         
         self.inference_sessions = {'wandering': sess}
        
-    @classmethod
-    def points2box(cls,p1,p2):
-        _left   = min(p1[0], p2[0])
-        _right  = max(p1[0], p2[0])
-        _top    = min(p1[1], p2[1])
-        _bottom = max(p1[1], p2[1])
-        
-        return [[_left,_top],[_right,_top],[_right,_bottom],[_left,_bottom]]
-        
     def read_config(self):
         # 读取配置文件
         _config_file = os.path.join(_cur_dir_, 'config.yaml')

@@ -614,6 +614,15 @@ class ImageHandler(BaseHandler):
         # return the warped image
         return warped
 
+    @classmethod
+    def points2box(cls,p1,p2):
+        _left   = min(p1[0], p2[0])
+        _right  = max(p1[0], p2[0])
+        _top    = min(p1[1], p2[1])
+        _bottom = max(p1[1], p2[1])
+        
+        return [[_left,_top],[_right,_top],[_right,_bottom],[_left,_bottom]]
+        
 def dec_timer(func):
     @wraps(func)
     def wrapper(*args, **kwargs):

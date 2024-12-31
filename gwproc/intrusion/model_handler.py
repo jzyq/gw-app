@@ -23,7 +23,7 @@ class IntrusionDetectIntrusionHandler(ImageHandler):
         self.new_shape = [1920, 1920]
         
         # 设置缺省侵入控制区域为全图像, 配置文件和接口调用中若有明确定义将覆盖缺省定义
-        self.areas=[{"area_id": 0, "points": self.__class__.points2box([0,0], [self.new_shape[1]-1, self.new_shape[0]-1])}]
+        self.areas=[{"area_id": 0, "points": [[0,0], [self.new_shape[1]-1, self.new_shape[0]-1]]}]
 
         self.read_config()
         
@@ -59,15 +59,6 @@ class IntrusionDetectIntrusionHandler(ImageHandler):
         
         self.inference_sessions = {'intrusion': sess}
 
-    @classmethod
-    def points2box(cls,p1,p2):
-        _left   = min(p1[0], p2[0])
-        _right  = max(p1[0], p2[0])
-        _top    = min(p1[1], p2[1])
-        _bottom = max(p1[1], p2[1])
-        
-        return [[_left,_top],[_right,_top],[_right,_bottom],[_left,_bottom]]
-        
     def read_config(self):
         # 读取配置文件
         _config_file = os.path.join(_cur_dir_, 'config.yaml')
@@ -117,18 +108,6 @@ class IntrusionDetectIntrusionHandler(ImageHandler):
         else:
             logger.info(f'Model {self.model_name} Relased')
 
-    def process_extra_args(json_data):
-        # If json_data is a string, parse it
-        if isinstance(json_data, str):
-            data = json.loads(json_data)
-        else:
-            data = json_data  # If it's already a dictionary
-
-        # Accessing data
-        print("Name:", data['pos'])
-        print("Age:", data['age'])
-        print("City:", data['city'])
-    
     def run_inference(self, images_data, extra_args=None):
         _areas=[]
         if extra_args is not None:
