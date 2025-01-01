@@ -1,12 +1,25 @@
-from typing import Optional
+from enum import StrEnum
+from typing import Dict, List, Optional
 
 import redis
 
+from .models import (
+    CreateInferenceTaskRequest,
+    InferenceObject,
+    InferenceResult,
+    TaskResults,
+)
 from .redis_keys import RedisKeys
 from .settings import get_app_settings
-from .utils import generate_a_random_hex_str
 
 _settings = get_app_settings()
+
+
+class InferenceState(StrEnum):
+    pending = "pending"
+    running = "running"
+    complete = "complelte"
+    failed = "failed"
 
 
 class Task(redis.Redis):
@@ -20,42 +33,70 @@ class Task(redis.Redis):
         return self._tid
 
     @property
-    def model_id(self) -> str:
-        return self.hget(RedisKeys.task(self.task_id), "model_id").decode()
-
-    @property
-    def post_process(self) -> str:
-        return self.hget(RedisKeys.task(self.task_id), "post_process").decode()
-
-    @property
-    def image_url(self) -> str:
-        return self.hget(RedisKeys.task(self.task_id), "image_url").decode()
-
-    @property
     def callback(self) -> str:
         return self.hget(RedisKeys.task(self.task_id), "callback").decode()
 
     @property
-    def inference_result(self) -> Optional[str]:
-        res: bytes = self.get(RedisKeys.inference_result(self.task_id))
-        return res.decode() if res is not None else res
-
-    @property
-    def postprocess_result(self) -> Optional[str]:
-        res: bytes = self.get(RedisKeys.inference_result(self.task_id))
-        return res.decode() if res is not None else res
+    def raw_request(self) -> CreateInferenceTaskRequest:
+        data = self.hget(RedisKeys.task(self.task_id), "raw_request").decode()
+        return CreateInferenceTaskRequest.model_validate_json(data)
 
     @property
     def ttl(self) -> int:
         return int(super().ttl(RedisKeys.task(self.task_id)))
 
-    @inference_result.setter
-    def inference_result(self, data: str):
-        self.set(RedisKeys.inference_result(self.task_id), data, ex=self.ttl)
+    @property
+    def object_list(self) -> List[InferenceObject]:
+        return self.raw_request.object_list
 
-    @postprocess_result.setter
-    def postprocess_result(self, data: str):
-        self.set(RedisKeys.postprocess_result(self.task_id), data, ex=self.ttl)
+    def get_object(self, name: str) -> Optional[InferenceObject]:
+        for obj in self.object_list:
+            if obj.object_id == name:
+                return obj
+        return None
+
+    def update_inference_state(
+        self, obj: InferenceObject, model: str, state: InferenceState
+    ):
+        name = RedisKeys.task_inference_state(self.task_id, obj.object_id)
+        super().hset(name, mapping={model: str(state)})
+        super().expire(name, self.ttl)
+
+    def get_inference_state(self, obj: InferenceObject, model: str) -> InferenceState:
+        if model in obj.type_list:
+            name = RedisKeys.task_inference_state(self.task_id, obj.object_id)
+            res = super().hget(name, model)
+            if res is None:
+                return InferenceState.pending
+            return InferenceState(res.decode())
+        raise Exception(f"object no such model in model list {model}")
+
+    def get_inference_result(
+        self, obj: InferenceObject, model: str
+    ) -> Optional[InferenceResult]:
+        name = RedisKeys.task_inference_result(self.task_id, obj.object_id)
+        res = super().hget(name, model)
+        if res is None:
+            return None
+        return InferenceResult.model_validate_json(res)
+
+    def set_inference_result(
+        self, obj: InferenceObject, model: str, res: InferenceResult
+    ):
+        name = RedisKeys.task_inference_result(self.task_id, obj.object_id)
+        super().hset(name, mapping={model: res.model_dump_json(by_alias=True)})
+        super().expire(name, self.ttl)
+
+    def set_postprocess_result(self, res: TaskResults):
+        name = RedisKeys.postprocess_result(self.task_id)
+        super().set(name, res.model_dump_json(by_alias=True), ex=self.ttl)
+
+    def get_postprocess_result(self) -> Optional[TaskResults]:
+        name = RedisKeys.postprocess_result(self.task_id)
+        res = super().get(name)
+        if res is None:
+            return None
+        return TaskResults.model_validate_json(res)
 
 
 class TaskPool(redis.Redis):
@@ -66,16 +107,17 @@ class TaskPool(redis.Redis):
         super().__init__(*args, **kwargs)
         self._task_ttl = task_ttl
 
-    def new(self, model_id: str, image_url: str, post_process: str, callback: str, task_id: str = None) -> Task:
-        if task_id is None:
-            task_id = generate_a_random_hex_str(self.TASK_ID_LENGTH)
-        self.hset(RedisKeys.task(task_id), mapping={
-            "task_id": task_id,
-            "model_id": model_id,
-            "image_url": image_url,
-            "post_process": post_process,
-            "callback": callback
-        })
+    def new(
+        self, task_id: str, callback: str, raw_request: CreateInferenceTaskRequest
+    ) -> Task:
+        self.hset(
+            RedisKeys.task(task_id),
+            mapping={
+                "task_id": task_id,
+                "callback": callback,
+                "raw_request": raw_request.model_dump_json(by_alias=True),
+            },
+        )
         self.expire(RedisKeys.task(task_id), self._task_ttl)
         return Task(tid=task_id, connection_pool=self.connection_pool)
 
@@ -86,6 +128,4 @@ class TaskPool(redis.Redis):
         return Task(task_id, connection_pool=self.connection_pool)
 
     def delete(self, task_id: str):
-        super().delete(RedisKeys.task(task_id),
-                       RedisKeys.inference_result(task_id),
-                       RedisKeys.postprocess_result(task_id))
+        super().delete(RedisKeys.task(task_id), RedisKeys.postprocess_result(task_id))
