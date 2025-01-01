@@ -10,7 +10,7 @@ from loguru import logger
 from gw.runner import Command, Runner
 from gw.settings import get_app_settings
 from gw.streams import Streams
-from gw.tasks import InferenceState, TaskPool
+from gw.tasks import InferenceState, TaskPool, InferenceResult
 
 
 def read_name_and_model_id_from_cli():
@@ -165,13 +165,17 @@ def main(name: str, model_id: str):
             task.update_inference_state(obj, model_id, InferenceState.running)
 
             # TODO run inference
+            result = InferenceResult(
+                type=model_id, value="", code="2002", resImageUrl="",
+                pos=[], conf=0.874, desc="ok"
+            )
+            task.set_inference_result(obj, model_id, result)
 
             # Update task status to let dispatcher know inference running.
             task.update_inference_state(obj, model_id, InferenceState.complete)
             runner.is_busy = True
             runner.utime = datetime.now()
             runner.task = task.task_id
-            # runner.object = obj.object_id  # FIXME
 
             # Notify post process that inference complete.
             complete_stream.publish({"task_id": tid})

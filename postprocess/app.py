@@ -113,9 +113,9 @@ def main():
         # if complete, notify next processer, or ignore.
         if compose_results(task):
             out_stream.publish({"task_id": task.task_id})
+            logger.info(f"task {task.task_id} result compose complete")
 
         msg.ack()
-        logger.debug("post process submit to a worker.")
 
     # Clean worker pool, terminate all working process.
     # Any unfinished post process will be drop.

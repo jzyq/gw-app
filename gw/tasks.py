@@ -68,7 +68,7 @@ class Task(redis.Redis):
             res = super().hget(name, model)
             if res is None:
                 return InferenceState.pending
-            return InferenceState(res)
+            return InferenceState(res.decode())
         raise Exception(f"object no such model in model list {model}")
 
     def get_inference_result(
