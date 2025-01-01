@@ -1,69 +1,56 @@
 import signal
 import threading
-from concurrent.futures import ProcessPoolExecutor
 
 import redis
 from loguru import logger
 
+from gw.models import ComposedResult, TaskResults
 from gw.settings import get_app_settings
 from gw.streams import Streams
-from gw.tasks import TaskPool
+from gw.tasks import InferenceState, Task, TaskPool
 from gw.utils import generate_a_random_hex_str
 
 
 def make_signal_handler(evt: threading.Event):
     def handler(signum, frame):
         evt.set()
+
     return handler
 
 
-# NOTE: This worker funcion will run in a subprocess
-#       Arguments provided to this func must be serializable
-def postprocess_worker(tid: str):
+def compose_results(task: Task) -> bool:
+    # Check if all inference under a object are completed.
+    # And try to compose inference result.
+    composed_results = []
 
-    import json
-    import os
-    import signal
-    import sys
-    import time
-    from multiprocessing import current_process
+    # Check each object and each model.
+    for obj in task.object_list:
 
-    import redis
+        # Use to track inference results.
+        results = []
 
-    from gw.settings import get_app_settings
-    from gw.streams import Streams
-    from gw.tasks import TaskPool
-    from gw.utils import initlize_logger
+        for model in obj.type_list:
+            if task.get_inference_state(obj, model) == InferenceState.complete:
+                res = task.get_inference_result(obj, model)
+                if res is None:
+                    return False
+                results.append(res)
 
-    initlize_logger(f"postprocess_worker-{current_process().pid}")
-    logger.info(f"post process worker {current_process().pid} start.")
+            # If any inference not complete, compose failed.
+            else:
+                return False
 
-    # Because this run in a new process.
-    # So need to connect redis and initlize task pool and stream.
-    rdb = redis.Redis(
-        host=get_app_settings().redis_host,
-        port=get_app_settings().redis_port,
-        db=get_app_settings().redis_db,
-    )
-    taskpool = TaskPool(connection_pool=rdb.connection_pool)
-    stream = Streams(rdb=rdb).task_finish
+        # Compose inference result about this object, push to result list.
+        compose_res = ComposedResult(objectId=obj.object_id, results=results)
+        composed_results.append(compose_res)
 
-    # For signal, just exit process.
-    signal.signal(signal.SIGTERM, lambda: sys.exit(0))
-    signal.signal(signal.SIGINT, lambda: sys.exit(0))
+    # So all inference are completed.
+    # Write final result into redis.
+    res = TaskResults(requestId=task.task_id, requestList=composed_results)
+    task.set_postprocess_result(res)
 
-    # Read task data.
-    task = taskpool.get(tid)
-
-    task.postprocess_result = json.dumps({
-        "image": task.image_url,
-        "postprocess": task.post_process,
-        "result": json.loads(task.inference_result)
-    })
-    stream.publish({"task_id": task.task_id})
-    logger.info("postprocess complete, notify.")
-
-    rdb.close()
+    # Return successed.
+    return True
 
 
 def main():
@@ -71,12 +58,12 @@ def main():
     # Connect to redis.
     settings = get_app_settings()
     rdb = redis.Redis(
-        host=settings.redis_host,
-        port=settings.redis_port,
-        db=settings.redis_db
+        host=settings.redis_host, port=settings.redis_port, db=settings.redis_db
     )
-    logger.info(f"connect redis {settings.redis_host}:{settings.redis_port}, " +
-                f"use db {settings.redis_db}")
+    logger.info(
+        f"connect redis {settings.redis_host}:{settings.redis_port}, "
+        + f"use db {settings.redis_db}"
+    )
 
     # Connect message streams, and make a consumer name.
     # in stream use to pull message from runner to notify that inference complete.
@@ -85,15 +72,14 @@ def main():
     streams_maker = Streams(connection_pool=rdb.connection_pool)
     in_stream = streams_maker.task_inference_complete
     out_stream = streams_maker.task_finish
-    logger.info(f"use input stream {in_stream.stream}, readgroup {in_stream.stream}, " +
-                f"consumer name {consumer}. " +
-                f"output stream {out_stream.stream}, readgroup {out_stream.readgroup}.")
+    logger.info(
+        f"use input stream {in_stream.stream}, readgroup {in_stream.stream}, "
+        + f"consumer name {consumer}. "
+        + f"output stream {out_stream.stream}, readgroup {out_stream.readgroup}."
+    )
 
     # Connect to task pool.
     taskpool = TaskPool(connection_pool=rdb.connection_pool)
-
-    # Make process pool to run postprocess, assume postprocess need lot of CPU.
-    workerpool = ProcessPoolExecutor()
 
     # Make stop flag and register signal handler.
     stop_flag = threading.Event()
@@ -123,17 +109,17 @@ def main():
             msg.ack()
             continue
 
-        # Put task into postprocess worker pool
-        # Argument stream use to send notification when postprocess down.
-        # No return value.
-        workerpool.submit(postprocess_worker, task.task_id)
+        # compose results.
+        # if complete, notify next processer, or ignore.
+        if compose_results(task):
+            out_stream.publish({"task_id": task.task_id})
+
         msg.ack()
         logger.debug("post process submit to a worker.")
 
     # Clean worker pool, terminate all working process.
     # Any unfinished post process will be drop.
     logger.info("recieve stop signal, cleanup...")
-    workerpool.shutdown(cancel_futures=True)
     rdb.close()
 
 

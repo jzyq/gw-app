@@ -3,7 +3,12 @@ from typing import Dict, List, Optional
 
 import redis
 
-from .models import CreateInferenceTaskRequest, InferenceObject
+from .models import (
+    CreateInferenceTaskRequest,
+    InferenceObject,
+    InferenceResult,
+    TaskResults,
+)
 from .redis_keys import RedisKeys
 from .settings import get_app_settings
 
@@ -65,6 +70,33 @@ class Task(redis.Redis):
                 return InferenceState.pending
             return InferenceState(res)
         raise Exception(f"object no such model in model list {model}")
+
+    def get_inference_result(
+        self, obj: InferenceObject, model: str
+    ) -> Optional[InferenceResult]:
+        name = RedisKeys.task_inference_result(self.task_id, obj.object_id)
+        res = super().hget(name, model)
+        if res is None:
+            return None
+        return InferenceResult.model_validate_json(res)
+
+    def set_inference_result(
+        self, obj: InferenceObject, model: str, res: InferenceResult
+    ):
+        name = RedisKeys.task_inference_result(self.task_id, obj.object_id)
+        super().hset(name, mapping={model: res.model_dump_json(by_alias=True)})
+        super().expire(name, self.ttl)
+
+    def set_postprocess_result(self, res: TaskResults):
+        name = RedisKeys.postprocess_result(self.task_id)
+        super().set(name, res.model_dump_json(by_alias=True), ex=self.ttl)
+
+    def get_postprocess_result(self) -> Optional[TaskResults]:
+        name = RedisKeys.postprocess_result(self.task_id)
+        res = super().get(name)
+        if res is None:
+            return None
+        return TaskResults.model_validate_json(res)
 
 
 class TaskPool(redis.Redis):
