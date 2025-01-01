@@ -10,7 +10,7 @@ from loguru import logger
 from gw.runner import Command, Runner
 from gw.settings import get_app_settings
 from gw.streams import Streams
-from gw.tasks import InferenceState, TaskPool, InferenceResult
+from gw.tasks import InferenceResult, InferenceState, TaskPool
 
 
 def read_name_and_model_id_from_cli():
@@ -40,34 +40,29 @@ def runner_heartbeat(
         runner.update_heartbeat(datetime.now(), ttl)
 
 
-# def load_model(name: str) -> GWModel:
-#     # Find model in model directory.
-#     conf = get_app_settings()
+def load_model(name: str):
+    if "RUNNER_DEBUG" in os.environ:
 
-#     model_dir = os.path.join(conf.pt_model_root, name)
-#     logger.debug(f"looking for model directory: {model_dir} ...")
-#     if not os.path.exists(model_dir):
-#         raise FileNotFoundError()
-#     logger.debug("ok")
+        class FakeProc:
+            def run_inference(self, image_files, extra_args=None):
+                return InferenceResult(
+                    type=model_id,
+                    value="",
+                    code="2002",
+                    resImageUrl="",
+                    pos=[],
+                    conf=0.874,
+                    desc="ok",
+                )
 
-#     model_conf_path = os.path.join(model_dir, f"{name}.json")
-#     logger.debug(f"looking for model config file: {model_conf_path} ...")
-#     if not os.path.exists(model_conf_path):
-#         raise FileNotFoundError()
-#     logger.debug("ok")
+            def release(self):
+                pass
 
-#     with open(model_conf_path, "r") as fp:
-#         model_conf = json.load(fp)
+        return FakeProc()
+    else:
+        from gwproc.gwproc import GWProc
 
-#     try:
-#         model_conf["model"]["path"] = os.path.join(
-#             model_dir, model_conf["model"]["path"]
-#         )
-#     except:
-#         pass
-
-#     model = GWModel(model_conf, 0)
-#     return model
+        return GWProc(model_name=name)
 
 
 def main(name: str, model_id: str):
@@ -122,6 +117,7 @@ def main(name: str, model_id: str):
     )
 
     # Load model.
+    model = load_model(model_id)
 
     logger.info("start message loop.")
     while not stop_flag.is_set():
@@ -164,11 +160,8 @@ def main(name: str, model_id: str):
             )
             task.update_inference_state(obj, model_id, InferenceState.running)
 
-            # TODO run inference
-            result = InferenceResult(
-                type=model_id, value="", code="2002", resImageUrl="",
-                pos=[], conf=0.874, desc="ok"
-            )
+            # Run inference.
+            result = model.run_inference(obj.image_url_list, obj)
             task.set_inference_result(obj, model_id, result)
 
             # Update task status to let dispatcher know inference running.
@@ -200,6 +193,7 @@ def main(name: str, model_id: str):
     # Set exit flag
     logger.info("message loop stopped, cleanup...")
     runner.clean_heartbeat()
+    model.release()
     runner.is_alive = False
     rdb.close()
 
