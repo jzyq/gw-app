@@ -11,6 +11,7 @@ from gw.streams import Streams
 from gw.tasks import TaskPool
 from gw.utils import generate_a_random_hex_str
 from gw.utils import initlize_logger
+from gw.models import TaskResults
 
 def make_signal_handler(evt: threading.Event):
     def handler(signum, frame):
@@ -74,9 +75,8 @@ def main():
             continue
 
         try:
-            resp = requests.post(task.callback, json={
-                "result": json.loads(task.postprocess_result)
-            })
+            res = task.get_postprocess_result()
+            resp = requests.post(task.callback, json=res.model_dump(by_alias=True))
         except requests.exceptions.InvalidURL as e:
             logger.error(f"invalid url: {e}")
             # TODO: task have a invalid callback url, what should do ?

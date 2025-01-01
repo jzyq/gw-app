@@ -3,11 +3,10 @@ from fastapi import APIRouter, Request
 from fastapi.responses import Response
 from loguru import logger
 
+from gw import models
 from gw.settings import AppSettings
 from gw.streams import RedisStream
 from gw.tasks import TaskPool
-
-from gw import models
 
 router = APIRouter()
 
@@ -48,3 +47,8 @@ async def create_task(task: models.CreateInferenceTaskRequest, req: Request):
         return Response(content="redis disconnected", status_code=500)
 
     return Response(status_code=200)
+
+
+@router.post("/picAnalyseRetNotify")
+async def debug_callback(req: models.TaskResults):
+    logger.debug(req.model_dump_json(by_alias=True))
