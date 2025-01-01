@@ -1,12 +1,20 @@
-from typing import Optional
+from enum import StrEnum
+from typing import Dict, List, Optional
 
 import redis
 
-from .models import CreateInferenceTaskRequest
+from .models import CreateInferenceTaskRequest, InferenceObject
 from .redis_keys import RedisKeys
 from .settings import get_app_settings
 
 _settings = get_app_settings()
+
+
+class InferenceState(StrEnum):
+    pending = "pending"
+    running = "running"
+    complete = "complelte"
+    failed = "failed"
 
 
 class Task(redis.Redis):
@@ -29,17 +37,34 @@ class Task(redis.Redis):
         return CreateInferenceTaskRequest.model_validate_json(data)
 
     @property
-    def inference_result(self) -> Optional[str]:
-        res: bytes = self.get(RedisKeys.inference_result(self.task_id))
-        return res.decode() if res is not None else res
-
-    @property
     def ttl(self) -> int:
         return int(super().ttl(RedisKeys.task(self.task_id)))
 
-    @inference_result.setter
-    def inference_result(self, data: str):
-        self.set(RedisKeys.inference_result(self.task_id), data, ex=self.ttl)
+    @property
+    def object_list(self) -> List[InferenceObject]:
+        return self.raw_request.object_list
+
+    def get_object(self, name: str) -> Optional[InferenceObject]:
+        for obj in self.object_list:
+            if obj.object_id == name:
+                return obj
+        return None
+
+    def update_inference_state(
+        self, obj: InferenceObject, model: str, state: InferenceState
+    ):
+        name = RedisKeys.task_inference_state(self.task_id, obj.object_id)
+        super().hset(name, mapping={model: str(state)})
+        super().expire(name, self.ttl)
+
+    def get_inference_state(self, obj: InferenceObject, model: str) -> InferenceState:
+        if model in obj.type_list:
+            name = RedisKeys.task_inference_state(self.task_id, obj.object_id)
+            res = super().hget(name, model)
+            if res is None:
+                return InferenceState.pending
+            return InferenceState(res)
+        raise Exception(f"object no such model in model list {model}")
 
 
 class TaskPool(redis.Redis):
@@ -50,12 +75,17 @@ class TaskPool(redis.Redis):
         super().__init__(*args, **kwargs)
         self._task_ttl = task_ttl
 
-    def new(self, task_id: str, callback: str, raw_request: CreateInferenceTaskRequest) -> Task:
-        self.hset(RedisKeys.task(task_id), mapping={
-            "task_id": task_id,
-            "callback": callback,
-            "raw_request": raw_request.model_dump_json()
-        })
+    def new(
+        self, task_id: str, callback: str, raw_request: CreateInferenceTaskRequest
+    ) -> Task:
+        self.hset(
+            RedisKeys.task(task_id),
+            mapping={
+                "task_id": task_id,
+                "callback": callback,
+                "raw_request": raw_request.model_dump_json(by_alias=True),
+            },
+        )
         self.expire(RedisKeys.task(task_id), self._task_ttl)
         return Task(tid=task_id, connection_pool=self.connection_pool)
 
@@ -66,6 +96,4 @@ class TaskPool(redis.Redis):
         return Task(task_id, connection_pool=self.connection_pool)
 
     def delete(self, task_id: str):
-        super().delete(RedisKeys.task(task_id),
-                       RedisKeys.inference_result(task_id),
-                       RedisKeys.postprocess_result(task_id))
+        super().delete(RedisKeys.task(task_id), RedisKeys.postprocess_result(task_id))

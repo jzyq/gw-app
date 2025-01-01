@@ -5,7 +5,6 @@ from typing import List, Optional
 
 import redis
 from loguru import logger
-from pydantic import BaseModel
 
 from .redis_keys import RedisKeys
 from .streams import RedisStream
@@ -26,11 +25,6 @@ class Command(StrEnum):
     task = "task"
 
 
-class Message(BaseModel):
-    cmd: Command
-    data: bytes = bytes()
-
-
 class Runner:
 
     def __init__(self, rdb: redis.Redis, name: str) -> None:
@@ -47,8 +41,7 @@ class Runner:
 
     @property
     def model_id(self) -> str:
-        return self.redis_client.hget(
-            RedisKeys.runner(self.name), "model_id").decode()
+        return self.redis_client.hget(RedisKeys.runner(self.name), "model_id").decode()
 
     @property
     def ctime(self) -> datetime:
@@ -62,8 +55,7 @@ class Runner:
 
     @utime.setter
     def utime(self, dt: datetime):
-        self.redis_client.hset(RedisKeys.runner(
-            self.name), "utime", dt.isoformat())
+        self.redis_client.hset(RedisKeys.runner(self.name), "utime", dt.isoformat())
 
     @property
     def is_busy(self) -> bool:
@@ -72,19 +64,18 @@ class Runner:
 
     @is_busy.setter
     def is_busy(self, busy: bool):
-        self.redis_client.hset(RedisKeys.runner(
-            self.name), "busy", 1 if busy else 0)
+        self.redis_client.hset(RedisKeys.runner(self.name), "busy", 1 if busy else 0)
 
     @property
     def is_alive(self) -> bool:
-        alive = int(self.redis_client.hget(
-            RedisKeys.runner(self.name), "is_alive"))
+        alive = int(self.redis_client.hget(RedisKeys.runner(self.name), "is_alive"))
         return alive == 1
 
     @is_alive.setter
     def is_alive(self, alive: bool):
-        self.redis_client.hset(RedisKeys.runner(
-            self.name), "is_alive", 1 if alive else 0)
+        self.redis_client.hset(
+            RedisKeys.runner(self.name), "is_alive", 1 if alive else 0
+        )
 
     @property
     def task(self) -> Optional[str]:
@@ -112,15 +103,15 @@ class Runner:
         )
 
     def stop(self):
-        self.stream.publish(Message(cmd=Command.stop).model_dump())
+        self.stream.publish({"cmd": Command.stop})
 
-    def run_task(self, tid: str):
-        self.stream.publish(
-            Message(cmd=Command.task, data=tid.encode()).model_dump())
+    def run_task(self, tid: str, obj_id: str):
+        self.stream.publish({"cmd": Command.task, "tid": tid, "oid": obj_id})
 
     def update_heartbeat(self, dt: datetime, ttl: float):
-        self.redis_client.set(RedisKeys.runner_heartbeat(
-            self.name), dt.isoformat(), ex=ttl)
+        self.redis_client.set(
+            RedisKeys.runner_heartbeat(self.name), dt.isoformat(), ex=ttl
+        )
 
     def clean_heartbeat(self):
         self.redis_client.delete(RedisKeys.runner_heartbeat(self.name))
@@ -162,8 +153,9 @@ class RunnerPool(redis.Redis):
                 runner = self.get(name)
 
         # Name ok, make a new runner.
-        runner = Runner(rdb=redis.Redis(connection_pool=self.connection_pool),
-                        name=name)
+        runner = Runner(
+            rdb=redis.Redis(connection_pool=self.connection_pool), name=name
+        )
 
         # Write runner metadata.
         self.hset(
@@ -181,7 +173,9 @@ class RunnerPool(redis.Redis):
 
         # Create runner stream and readgroup for command message.
         self.xgroup_create(
-            RedisKeys.runner_stream(runner.name), RedisKeys.runner_stream_readgroup(runner.name), mkstream=True
+            RedisKeys.runner_stream(runner.name),
+            RedisKeys.runner_stream_readgroup(runner.name),
+            mkstream=True,
         )
 
         # Start runner worker.
@@ -195,7 +189,8 @@ class RunnerPool(redis.Redis):
         super().delete(
             RedisKeys.runner(name),
             RedisKeys.runner_heartbeat(name),
-            RedisKeys.runner_stream(name))
+            RedisKeys.runner_stream(name),
+        )
 
     def count(self) -> int:
         return len(self._get_all_runner_keys())

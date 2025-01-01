@@ -5,11 +5,12 @@ class RedisKeys(StrEnum):
 
     max_runner_num = "runner_num::dispatcher::gw"
 
-    def inference_result(x): return f"{x}::inference::result::gw"
     def postprocess_result(x): return f"{x}::postprocess:result::gw"
 
     task_suffix = "task::gw"
     def task(x): return f"{x}::task::gw"
+    def task_inference_state(x, o): return f"state::{o}::{x}::task::gw"
+    def task_inference_result(x, o): return f"result::{o}::{x}::task::gw"
 
     runner_suffix = "runner::gw"
     def runner(x): return f"{x}::runner::gw"
