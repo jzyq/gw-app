@@ -57,8 +57,7 @@ services:
       # For example, if you put you models file in /models,
       # so it should be /models:/app/models:r
       #
-      - /home/HwHiAiUser/gw-app/models:/app/models:r
-      - /home/HwHiAiUser/gw-app/data:/app/data:r
+      - <path to gwproc>:/app/gwproc:rw
 
       # NOTE: Do not change the following lines.
       #
