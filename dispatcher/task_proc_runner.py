@@ -161,7 +161,7 @@ def main(name: str, model_id: str):
             task.update_inference_state(obj, model_id, InferenceState.running)
 
             # Run inference.
-            result = model.run_inference(obj.image_url_list, obj)
+            result = model.run_inference(obj.image_url_list, task.raw_request.model_dump(by_alias=True))
             task.set_inference_result(obj, model_id, result)
 
             # Update task status to let dispatcher know inference running.
