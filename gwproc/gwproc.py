@@ -72,6 +72,14 @@ class GWProc:
             raise ValueError(
                 f"Invalid platform type '{platform}'. Available platforms: {PLATFORM}")
 
+        if platform == 'ASCEND':
+            if device_id is None:
+                raise ValueError(
+                    f"Device ID is required for platform type 'ASCEND'")
+            elif isinstance(device_id, int) is False:
+                raise ValueError(
+                    f"In valid device ID {device_id}")
+
         self.model_instance = model_classes[model_name](platform=platform, device_id=device_id)
 
     def run_inference(self, image_files, extra_args=None):
