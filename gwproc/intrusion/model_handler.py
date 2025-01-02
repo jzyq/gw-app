@@ -110,23 +110,20 @@ class IntrusionDetectIntrusionHandler(ImageHandler):
 
     def run_inference(self, images_data, extra_args=None):
         _areas=[]
-        if extra_args is not None:
-            if extra_args.get('objectList') is not None:
-                if extra_args['objectList'][0].get('pos') is not None:
-                    _pos_items = extra_args['objectList'][0].get('pos')
+        if extra_args is None or extra_args.get('pos') is None:
+            logger.info(f'{self.model_name}收到无效extra_args, 忽略')
+        else:
+            _pos_items = extra_args.get('pos')
                     
-                    for _i,_pos in enumerate(_pos_items):
-                        if _pos.get('areas') is not None:
-                            _point_list = _pos.get('areas')
-                            
-                            _area_points=[]
-                            for _p in _point_list:
-                                _area_points.append([_p["x"], _p["y"]])
+            for _i,_pos in enumerate(_pos_items):
+                if _pos.get('areas') is not None:
+                    _point_list = _pos.get('areas')
                     
-                            # if len(_area_points) == 2:
-                            #     _area_points = self.__class__.points2box(_area_points[0], _area_points[1])
-
-                        _areas.append({"area_id": (_i+1), "points": _area_points})
+                    _area_points=[]
+                    for _p in _point_list:
+                        _area_points.append([_p["x"], _p["y"]])
+            
+                _areas.append({"area_id": (_i+1), "points": _area_points})
                             
         if len(_areas) == 0: # 没有extra_args将会采用初始化中的areas
             _areas=self.areas

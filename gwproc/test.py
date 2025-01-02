@@ -69,7 +69,8 @@ if __name__ == "__main__":
 
     # Run inference
     extra_args= json.loads(json_str)
-    results = model.run_inference(input_images, extra_args=extra_args)
+    for request_object in extra_args['objectList']:
+        results = model.run_inference(input_images, extra_args=request_object)
     t2 = time.time()
 
     print(f'TIME: {t1-t0:.4f}, {t2-t1:.4f}')
